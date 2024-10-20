@@ -1,0 +1,292 @@
+calculate()
+
+// Start of script
+function calculate() {
+    // Get values inputted by user
+    let x = [[0, 1, 2, 2], [0, 2, 2, 4], [2, 0, 3, 5]]
+    let y = [10, 16, 14, 12]
+    let n = y.length
+    let p = x.length + 1
+    
+    // Call functions for calculating summations to be assigned to variables
+    let x_sum = addXValues(x)
+    let y_sum = addYValues(y)
+    let x_sqr_sum = addXSqrValues(x)
+    let xy_prod_sum = addXyProdValues(x, y)
+    
+    // Defining other variables
+    let xx_prod_sum = []
+    let matrix = []
+    let a = []
+    let func = ""
+    let sr = 0
+    
+    // For multiple linear regression
+    if(x.length > 1) {
+        // Call function for calculating summations of x and y values
+        xx_prod_sum = addXxProdValues(x)
+        
+        // Call function for building the matrix
+        matrix = buildMatrix(n, x_sum, y_sum, x_sqr_sum, xx_prod_sum, xy_prod_sum)
+        
+        // Call function for Gauss-Jordan elimination method to get coefficients
+        a = gaussJordanMethod(matrix)
+        func = parseFloat(a[0])
+        for (let i = 1; i < a.length; i++) {
+            func = func + "+" + parseFloat(a[i]) + "*x_" + parseInt(i)
+        }
+        switch(x.length) {
+            case 2:
+                function f(x_1, x_2) {
+                    return eval(func)
+                }
+                break;
+            case 3:
+                function f(x_1, x_2, x_3) {
+                    return eval(func)
+                }
+                break;
+        }
+    }
+    
+    // For simple linear regression
+    else {
+        a = solveParams(n, xy_prod_sum[0], x_sum[0], y_sum, x_sqr_sum[0])
+        func = parseFloat(a[0]) + "+" + parseFloat(a[1]) + "*x"
+        function f(x) {
+            return eval(func)
+        }
+    }
+    
+    // Call function to compute for the sum of squared residuals around the mean line
+    let st = computeSt(y, (y_sum / n))
+    
+    // Compute for the sum of squared residuals around the regression line
+    for(let i = 0; i < x[0].length; i++) {
+        switch(x.length) {
+            case 1:
+                sr = computeSr(y[i], f(x[0][i]), sr)
+                break;
+            case 2:
+                sr = computeSr(y[i], f(x[0][i], x[1][i]), sr)
+                break;
+            case 3:
+                sr = computeSr(y[i], f(x[0][i], x[1][i], x[2][i]), sr)
+                break;
+        }
+    }
+    
+    // Call function to compute for the standard error of estimate
+    let error = computeStandardError(sr, n, p)
+
+    // Call the function to compute for the correlation coefficient
+    let r = computeR(st, sr)
+
+    console.log(r)
+}
+
+// Function for calculating the summation(s) of independent values
+function addXValues(x) {
+    let sums = []
+    for(let i = 0; i < x.length; i++) {
+        let sum = 0
+        x[i].forEach(num => {sum += num})
+        sums.push(sum)
+    }
+    return sums
+}
+
+// Function for calculating the summation of dependent values
+function addYValues(y) {
+    let sum = 0
+    y.forEach(num => {sum += num})
+    return sum
+}
+
+// Function for calculating the summation(s) of squared independent values
+function addXSqrValues(x) {
+    let sums = []
+    for(let i = 0; i < x.length; i++) {
+        let sum = 0
+        x[i].forEach(num => {sum += (num * num);})
+        sums.push(sum)
+    }
+    return sums
+}
+
+// Function for calculating the summation(s) of the products of independent values
+function addXxProdValues(x) {
+    let sums = []
+    for(let i = 0; i < x.length; i++) {
+        for(let j = i + 1; j < x.length; j++) {
+            let sum = 0
+            for(let k = 0; k < x[i].length; k++) {
+                sum += x[i][k] * x[j][k]
+            }
+        sums.push(sum)
+        }
+    }
+    return sums
+}
+
+// Function for calculating the summation(s) of the products of independent and dependent values
+function addXyProdValues(x, y) {
+    let sums = []
+    for(let i = 0; i < x.length; i++) {
+        let sum = 0
+        for(let j = 0; j < y.length; j++) {
+            sum += (x[i][j] * y[j])
+        }
+        sums.push(sum)
+    }
+    return sums
+}
+
+// Function for building the matrix
+function buildMatrix(n, x_sum, y_sum, x_sqr_sum, xx_prod_sum, xy_prod_sum) {
+    let m = []
+    
+    // Putting zeroes as placeholders
+    for(let i = 0; i <= x_sum.length; i++) {
+        m.push([])
+        for(let j = 0; j <= (x_sum.length + 1); j++) {
+            m[i].push(0)
+        }
+    }
+    
+    // First row and column
+    m[0][0] = n
+    for(let i = 0; i < 1; i++) {
+        for(let j = 1; j <= x_sum.length; j++) {
+            m[i][j] = x_sum[j - 1]
+            m[j][i] = x_sum[j - 1]
+        }
+    }
+    // Non-diagonal elements
+    for(let i = 1; i < x_sum.length; i++) {
+        for(let j = (i + 1); j <= x_sum.length; j++) {
+            m[i][j] = xx_prod_sum[(i + j) - 3]
+            m[j][i] = xx_prod_sum[(i + j) - 3]
+        }
+    }
+    
+    // Diagonal elements
+    for(let i = 1; i <= x_sum.length; i++) {
+        m[i][i] = x_sqr_sum[i - 1]
+    }
+    
+    // Last column
+    m[0][x_sum.length + 1] = y_sum
+    for(let i = 1; i <= x_sum.length; i++) {
+        let j = x_sum.length + 1
+        m[i][j] = xy_prod_sum[i - 1]
+    }
+    return m
+}
+
+// Function for getting best fit regression line
+function gaussJordanMethod(m) {
+    let a = []
+    
+    // Gaussian elimination method
+    for(let i = 0; i < m.length; i++) {
+        for(let j = 0; j <= i; j++) {
+            if(i == j) {
+                if(m[i][j] != 1) {
+                    val = (1 / m[i][j])
+                    for(let k = 0; k < m[i].length; k++) {
+                        m[i][k] = val * m[i][k]
+                    }
+                }
+            } else if(m[i][j] != 0) {
+                val = (m[i][j]) * (-1)
+                for(let k = 0; k < m[i].length; k++) {
+                    m[i][k] = (val * m[j][k]) + m[i][k]
+                }
+            }
+        }
+    }
+    
+    // Gauss-Jordan method
+    for(let i = 1; i < m.length; i++) {
+        for(let j = 0; j < i; j++) {
+            if(m[j][i] != 0) {
+                val = (m[j][i]) * (-1)
+                for(let k = 0; k < m[i].length; k++) {
+                    m[j][k] = (val * m[i][k]) + m[j][k]
+                }
+            }
+        }
+    }
+    
+    // Getting coefficients
+    for(let i = 0; i < m.length; i++) {
+        a.push(Math.round(((m[i][m.length]) + Number.EPSILON) * 100) / 100)
+    }
+    return a
+}
+
+// Function for solving coefficients in simple linear regression
+function solveParams(n, xy_prod_sum, x_sum, y_sum, x_sqr_sum) {
+    let a1 = ((n * xy_prod_sum) - (x_sum * y_sum)) / ((n * x_sqr_sum) - (Math.pow(x_sum, 2)))
+    let a0 = (y_sum / n) - (a1 * (x_sum / n))
+    return [a0, a1]
+}
+
+// Function to calculate the sum of squared residuals around the mean line
+function computeSt(y, y_mean) {
+    let sum = 0
+    y.forEach(num => {sum += Math.pow((num - y_mean), 2)})
+    return sum
+}
+
+// Function to calculate the sum of squared residuals around the regression line
+function computeSr(y, y_x, sr) {
+    sr += Math.pow((y - y_x), 2)
+    return sr
+}
+
+// Function to compute for the standard error of estimate
+function computeStandardError(sr, n, p) {
+    let error = Math.sqrt(sr / (n - p))
+    return error
+}
+
+// Function to compute for the correlation coefficient
+function computeR(st, sr) {
+    let r = []
+    r.push(Math.sqrt((st - sr) / st))
+    let coef = r[0]
+    
+    // For verbal description or interpretation
+    switch (true) {
+        case coef < -0.70 && coef >= -1:
+            r.push("Very Strong", "Negative")
+            break;
+        case coef < -0.50 && coef >= -0.70:
+            r.push("Strong", "Negative")
+            break;
+        case coef < -0.30 && coef >= -0.50:
+            r.push("Moderate", "Negative")
+            break;
+        case coef < 0 && coef >= -0.30:
+            r.push("Weak", "Negative")
+            break;
+        case coef == 0:
+            r.push("None", "Zero")
+            break;
+        case coef > 0 && coef <= 0.30:
+            r.push("Weak", "Positive")
+            break;
+        case coef > 0.30 && coef <= 0.50:
+            r.push("Moderate", "Positive")
+            break;
+        case coef > 0.50 && coef <= 0.70:
+            r.push("Strong", "Positive")
+            break;
+        case coef > 0.70 && coef <= 1:
+            r.push("Very Strong", "Positive")
+            break;
+    }
+    return r
+}
